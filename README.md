@@ -1,128 +1,118 @@
 # Software-Engineer-Intern-Assignment-Zeotap
 
-CDAP Wrangler Enhancements: Byte Size and Time Duration Support
-Overview
-This enhancement integrates native support for parsing, handling, and aggregating data representing byte sizes (like "10KB" or "1.5MB") and time durations (like "250ms" or "3.5s") directly within Wrangler recipes. This simplifies data preparation tasks involving file sizes, transfer volumes, latency measurements, and other similar metrics.
+🚀 CDAP Wrangler Enhancements: Byte Size and Time Duration Support
+📝 Overview
+Added native support for parsing, handling, and aggregating:
 
-Core Components Added
-ByteSize Parser:
+Byte sizes (e.g., 10KB, 1.5MB)
 
-Recognizes common byte units (KB, MB, GB, TB, PB, case-insensitive, optional 'B').
+Time durations (e.g., 250ms, 3.5s)
 
-Plain numbers are treated as bytes.
+Simplifies data preparation involving:
 
-Provides canonical values in bytes using the long getBytes() method. (1 KB = 1024 Bytes).
+File sizes
 
-TimeDuration Parser:
+Transfer volumes
 
-Recognizes common time units (ns, us, ms, s, sec, m, min, h, hr, d, case-insensitive).
+Latency measurements
 
-Plain numbers are treated as milliseconds.
+🧩 Core Components Added
+🔹 ByteSize Parser
+Recognizes units: KB, MB, GB, TB, PB (case-insensitive, optional B)
 
-Provides canonical values in nanoseconds using the long getNanoseconds() method.
+Plain numbers = bytes
 
-Allows conversion to other Java TimeUnits.
+Canonical format: long getBytes()
 
-Grammar Updates:
+Uses 1024 multiplier (1 KB = 1024 Bytes)
 
-The core ANTLR grammar (Directives.g4) is updated with BYTE_SIZE and TIME_DURATION tokens.
+🔹 TimeDuration Parser
+Recognizes units: ns, us, ms, s, sec, m, min, h, hr, d (case-insensitive)
 
-New Directive: aggregate-stats:
+Plain numbers = milliseconds
 
-Performs aggregation across rows for specified byte size and time duration columns.
+Canonical format: long getNanoseconds()
 
-Outputs a single row with the results.
+Supports conversion to Java TimeUnit
 
-New Directive: aggregate-stats
-This directive processes the entire dataset (or current batch in a pipeline context) to calculate aggregate statistics for size and time columns, outputting a single row with the results.
+🔹 Grammar Updates
+Updated ANTLR grammar (Directives.g4)
 
-Syntax
-plaintext
+Added BYTE_SIZE and TIME_DURATION tokens
+
+🔹 New Directive: aggregate-stats
+Aggregates across rows for byte size and time duration columns
+
+Emits a single output row with totals or averages
+
+🧪 New Directive: aggregate-stats
+📌 Syntax
+wrangler
 Copy
 Edit
-wrangler
 aggregate-stats <size-column> <time-column> <target-size-column> <target-time-column> [size_unit:<unit>] [time_unit:<unit>] [time_mode:<mode>]
-Arguments
-<size-column> (ColumnName):
+📌 Arguments
+<size-column>: Column with byte size values (e.g., "10KB", "2097152")
 
-The source column containing byte size values (e.g., "10KB", "2097152").
+<time-column>: Column with time duration values (e.g., "150ms", "2.5s")
 
-Accepts strings matching the ByteSize format or plain numbers (interpreted as bytes).
+<target-size-column>: Output column for total size
 
-<time-column> (ColumnName):
+<target-time-column>: Output column for total or average time
 
-The source column containing time duration values (e.g., "150ms", "2.5s").
+📌 Optional Options (key:value)
+size_unit:<unit>
 
-Accepts strings matching the TimeDuration format or plain numbers (interpreted as milliseconds).
+Units: BYTES, KB, MB, GB, TB, PB
 
-<target-size-column> (ColumnName):
+Default: BYTES
 
-Name for the new output column that will contain the calculated total size.
+Output: long for BYTES, double for others (rounded to 3 decimals)
 
-<target-time-column> (ColumnName):
+time_unit:<unit>
 
-Name for the new output column that will contain the calculated total or average time.
+Units: NANOS, MICROS, MS, S, SECONDS, MINUTES, HOURS, DAYS
 
-Optional Options (Specified as key:value):
-size_unit:<unit> (Text):
+Default: NANOS
 
-Specifies the unit for the output <target-size-column>.
+Output: long for NANOS, double for others (rounded to 3 decimals)
 
-Supported units: BYTES, KB, MB, GB, TB, PB.
+time_mode:<mode>
 
-Default: BYTES.
+Modes: TOTAL, AVERAGE
 
-Output type is long for BYTES and double for others (rounded to 3 decimal places).
+Default: TOTAL
 
-time_unit:<unit> (Text):
+⚙️ Behavior
+Processes all input rows
 
-Specifies the unit for the output <target-time-column>.
+Aggregates:
 
-Supported units: NANOS, MICROS, MS, S (or SECONDS), MINUTES, HOURS, DAYS.
+Total size in bytes
 
-Default: NANOS.
+Total time in nanoseconds
 
-Output type is long for NANOS (when mode is TOTAL or AVERAGE on whole nanoseconds) and double for others (rounded to 3 decimal places).
+Tracks row count for average calculations
 
-time_mode:<mode> (Text):
+Skips rows with unparseable values (counts them for averaging if partially valid)
 
-Specifies the aggregation calculation for the time column.
+Emits one final row with calculated values
 
-Supported modes: TOTAL, AVERAGE.
+Outputs nothing if no rows are processed
 
-Default: TOTAL.
-
-Behavior
-The directive processes all input rows.
-
-It accumulates the total size (in bytes) and total time (in nanoseconds) from the specified source columns.
-
-It tracks the number of rows processed for calculating averages.
-
-Rows with null or unparseable values in the source columns are skipped for that specific calculation (the other value in the row might still be aggregated), but the row is counted for the AVERAGE mode denominator.
-
-In the finish phase (or at the end of processing), it calculates the final values based on the specified size_unit, time_unit, and time_mode.
-
-It emits a single row containing the final calculated values for both the size and time columns.
-
-If no rows are processed, it outputs an empty result (0 rows).
-
-Example Usage
-Parse CSV data
-
-plaintext
+📌 Example Usage
+➤ Parse CSV Data
+wrangler
 Copy
 Edit
 parse-as-csv :body ',' true;
-Calculate total download size in Megabytes (MB) and average response time in seconds (s)
-
-plaintext
+➤ Aggregate Total Download Size (MB) and Average Response Time (s)
+wrangler
 Copy
 Edit
 aggregate-stats :download_size_col :latency_col :total_dl_mb :avg_response_s size_unit:MB time_unit:s time_mode:average
-Keep only the aggregate results (optional, useful after aggregation)
-
-plaintext
+➤ Keep Only Result Columns
+wrangler
 Copy
 Edit
 keep :total_dl_mb :avg_response_s
